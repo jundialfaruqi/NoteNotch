@@ -167,6 +167,10 @@ struct ContentView: View {
                     .keyboardShortcut("u", modifiers: .command)
                 ToolbarIcon(icon: "list.bullet", isActive: false) { proxy.toggleList() }
                     .keyboardShortcut("l", modifiers: .command)
+                ToolbarIcon(icon: "list.number", isActive: false) { proxy.toggleOrderedList() }
+                    .keyboardShortcut("l", modifiers: [.command, .shift])
+                ToolbarIcon(icon: "curlybraces", isActive: proxy.isCodeSnippet) { proxy.toggleCodeSnippet() }
+                    .keyboardShortcut("j", modifiers: .command)
                 
                 Spacer()
                 
@@ -360,6 +364,7 @@ class EditorProxy: ObservableObject {
     @Published var isBold: Bool = false
     @Published var isItalic: Bool = false
     @Published var isUnderline: Bool = false
+    @Published var isCodeSnippet: Bool = false
     
     func updateState() {
         guard let textView = textView else { return }
@@ -396,11 +401,18 @@ class EditorProxy: ObservableObject {
             }
         }
         
+        
+        var newIsCodeSnippet = false
+        if let font = textView.typingAttributes[.font] as? NSFont {
+            newIsCodeSnippet = font.fontName.contains("Mono") || font.fontName.contains("Menlo")
+        }
+        
         // Bungkus dalam async agar tidak bentrok dengan update view
         DispatchQueue.main.async {
             self.isBold = newIsBold
             self.isItalic = newIsItalic
             self.isUnderline = newIsUnderline
+            self.isCodeSnippet = newIsCodeSnippet
         }
     }
     
@@ -507,38 +519,175 @@ class EditorProxy: ObservableObject {
         if (firstLineEnd == NSNotFound) || (range.location <= firstLineEnd) { return }
         
         if range.length == 0 {
-            // KASUS: Tidak ada seleksi (hanya kursor)
             let lineRange = fullString.lineRange(for: NSRange(location: range.location, length: 0))
             let currentLine = fullString.substring(with: lineRange)
             
-            if currentLine.hasPrefix("• ") {
-                // Hapus bullet jika sudah ada
+            if currentLine.hasPrefix("•\t") {
+                // Hapus bullet dan kembalikan indentasi ke normal
                 let bulletRange = NSRange(location: lineRange.location, length: 2)
                 textView.insertText("", replacementRange: bulletRange)
+                
+                let normalStyle = NSMutableParagraphStyle()
+                normalStyle.lineSpacing = 4
+                textView.textStorage?.addAttribute(.paragraphStyle, value: normalStyle, range: lineRange)
             } else {
-                // Tambah bullet di awal baris
-                textView.insertText("• ", replacementRange: NSRange(location: lineRange.location, length: 0))
+                // Tambah bullet dengan Tab dan Indentasi
+                textView.insertText("•\t", replacementRange: NSRange(location: lineRange.location, length: 0))
+                
+                let paraStyle = NSMutableParagraphStyle()
+                let indent: CGFloat = 22
+                paraStyle.tabStops = [NSTextTab(textAlignment: .left, location: indent, options: [:])]
+                paraStyle.headIndent = indent
+                paraStyle.firstLineHeadIndent = 0
+                paraStyle.lineSpacing = 4
+                textView.textStorage?.addAttribute(.paragraphStyle, value: paraStyle, range: lineRange)
             }
         } else {
             // KASUS: Ada seleksi teks
             let selectedText = fullString.substring(with: range)
             let lines = selectedText.components(separatedBy: "\n")
             
-            // Cek apakah baris pertama sudah punya bullet untuk menentukan arah toggle
-            let shouldAdd = !lines.contains { $0.hasPrefix("• ") }
+            let shouldAdd = !lines.contains { $0.hasPrefix("•\t") }
             
             let listLines = lines.map { line -> String in
                 if line.trimmingCharacters(in: .whitespaces).isEmpty { return line }
                 if shouldAdd {
-                    return line.hasPrefix("• ") ? line : "• " + line
+                    return line.hasPrefix("•\t") ? line : "•\t" + line
                 } else {
-                    return line.hasPrefix("• ") ? String(line.dropFirst(2)) : line
+                    return line.hasPrefix("•\t") ? String(line.dropFirst(2)) : line
                 }
             }
             let newListText = listLines.joined(separator: "\n")
             textView.insertText(newListText, replacementRange: range)
+            
+            let paraStyle = NSMutableParagraphStyle()
+            let indent: CGFloat = 22
+            paraStyle.tabStops = [NSTextTab(textAlignment: .left, location: indent, options: [:])]
+            paraStyle.headIndent = indent
+            paraStyle.firstLineHeadIndent = 0
+            paraStyle.lineSpacing = 4
+            
+            let updatedLineRange = (textView.string as NSString).lineRange(for: range)
+            textView.textStorage?.addAttribute(.paragraphStyle, value: paraStyle, range: updatedLineRange)
         }
         textView.didChangeText() // Paksa simpan agar shortcut tersimpan
+        updateState()
+    }
+    
+    func toggleCodeSnippet() {
+        guard let textView = textView else { return }
+        let range = textView.selectedRange()
+        let fullString = textView.string as NSString
+        let firstLineEnd = fullString.range(of: "\n").location
+        
+        // Blokir jika di judul
+        if (firstLineEnd == NSNotFound) || (range.location <= firstLineEnd) { return }
+        
+        let storage = textView.textStorage
+        // Luaskan jangkauan ke seluruh baris agar blok kodenya rapi
+        let lineRange = fullString.lineRange(for: range)
+        
+        if isCodeSnippet {
+            // Revert ke gaya normal
+            let normalFont = NSFont.systemFont(ofSize: 14)
+            let paraStyle = NSMutableParagraphStyle()
+            paraStyle.lineSpacing = 4
+            // Atur jarak tab agar tidak terlalu jauh (20 poin)
+            paraStyle.defaultTabInterval = 20
+            paraStyle.tabStops = [NSTextTab(textAlignment: .left, location: 20, options: [:])]
+            
+            storage?.addAttribute(.font, value: normalFont, range: lineRange)
+            storage?.addAttribute(.paragraphStyle, value: paraStyle, range: lineRange)
+            storage?.removeAttribute(.backgroundColor, range: lineRange)
+        } else {
+            // Terapkan Gaya Blok Kode (Hanya Font Monospaced)
+            let codeFont = NSFont.monospacedSystemFont(ofSize: 13, weight: .regular)
+            
+            // Terapkan ke seluruh jangkauan baris
+            storage?.addAttribute(.font, value: codeFont, range: lineRange)
+            
+            // Berikan spasi baris agar blok kode terlihat lega
+            let paraStyle = NSMutableParagraphStyle()
+            paraStyle.lineSpacing = 6
+            // Samakan tab interval agar konsisten
+            paraStyle.defaultTabInterval = 20
+            storage?.addAttribute(.paragraphStyle, value: paraStyle, range: lineRange)
+        }
+        
+        textView.didChangeText()
+        updateState()
+    }
+    
+    func toggleOrderedList() {
+        guard let textView = textView else { return }
+        let range = textView.selectedRange()
+        let fullString = textView.string as NSString
+        let firstLineEnd = fullString.range(of: "\n").location
+        
+        if (firstLineEnd == NSNotFound) || (range.location <= firstLineEnd) { return }
+        
+        if range.length == 0 {
+            let lineRange = fullString.lineRange(for: NSRange(location: range.location, length: 0))
+            let currentLine = fullString.substring(with: lineRange)
+            
+            let regex = try? NSRegularExpression(pattern: "^\\d+\\. ", options: [])
+            if let match = regex?.firstMatch(in: currentLine, options: [], range: NSRange(location: 0, length: (currentLine as NSString).length)) {
+                textView.insertText("", replacementRange: NSRange(location: lineRange.location, length: match.range.length))
+            } else {
+                textView.insertText("1. ", replacementRange: NSRange(location: lineRange.location, length: 0))
+            }
+        } else {
+            let selectedText = fullString.substring(with: range)
+            let lines = selectedText.components(separatedBy: "\n")
+            
+            let regex = try? NSRegularExpression(pattern: "^\\d+\\. ", options: [])
+            let shouldAdd = lines.first(where: { !($0.trimmingCharacters(in: .whitespaces).isEmpty) })
+                .map { line in regex?.firstMatch(in: line, options: [], range: NSRange(location: 0, length: (line as NSString).length)) == nil } ?? true
+            
+            var counter = 1
+            let listLines = lines.map { line -> String in
+                if line.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty { return line }
+                
+                let nsLine = line as NSString
+                if let match = regex?.firstMatch(in: line, options: [], range: NSRange(location: 0, length: nsLine.length)) {
+                    let textWithoutNumber = nsLine.substring(from: match.range.length)
+                    if shouldAdd {
+                        let newLine = "\(counter).\t\(textWithoutNumber)"
+                        counter += 1
+                        return newLine
+                    } else {
+                        return textWithoutNumber
+                    }
+                } else {
+                    if shouldAdd {
+                        let newLine = "\(counter).\t\(line)"
+                        counter += 1
+                        return newLine
+                    } else {
+                        return line
+                    }
+                }
+            }
+            let newListText = listLines.joined(separator: "\n")
+            textView.insertText(newListText, replacementRange: range)
+            
+            // TERAPKAN GAYA INDENTASI PRO UNTUK SEMUA BARIS YANG DIPILIH
+            let paraStyle = NSMutableParagraphStyle()
+            let indent: CGFloat = 22
+            paraStyle.tabStops = [NSTextTab(textAlignment: .left, location: indent, options: [:])]
+            paraStyle.headIndent = indent 
+            paraStyle.firstLineHeadIndent = 0
+            paraStyle.lineSpacing = 4
+            
+            let updatedLineRange = (textView.string as NSString).lineRange(for: range)
+            textView.textStorage?.addAttribute(.paragraphStyle, value: paraStyle, range: updatedLineRange)
+            
+            // Pastikan gaya ini terbawa saat mengetik selanjutnya
+            var attrs = textView.typingAttributes
+            attrs[.paragraphStyle] = paraStyle
+            textView.typingAttributes = attrs
+        }
+        textView.didChangeText()
         updateState()
     }
 }
@@ -649,23 +798,96 @@ struct MacRichEditorView: NSViewRepresentable {
         
         func textView(_ textView: NSTextView, shouldChangeTextIn affectedCharRange: NSRange, replacementString: String?) -> Bool {
             if isProcessingEnter { return true }
-            guard let replacement = replacementString, replacement == "\n" else { return true }
+            guard let replacement = replacementString else { return true }
             
             let fullString = textView.string as NSString
             let lineRange = fullString.lineRange(for: NSRange(location: affectedCharRange.location, length: 0))
             let currentLine = fullString.substring(with: lineRange)
             
-            if currentLine.contains("• ") {
-                isProcessingEnter = true
-                defer { isProcessingEnter = false }
+            // --- AUTO FORMAT SAAT MENGETIK SPASI ---
+            if replacement == " " {
+                // A. Deteksi "1. "
+                let numRegex = try? NSRegularExpression(pattern: "^(\\d+)\\.$", options: [])
+                if numRegex?.firstMatch(in: currentLine, options: [], range: NSRange(location: 0, length: (currentLine as NSString).length)) != nil {
+                    textView.insertText("\t", replacementRange: affectedCharRange)
+                    let paraStyle = NSMutableParagraphStyle()
+                    let indent: CGFloat = 22
+                    paraStyle.tabStops = [NSTextTab(textAlignment: .left, location: indent, options: [:])]
+                    paraStyle.headIndent = indent
+                    paraStyle.firstLineHeadIndent = 0
+                    textView.textStorage?.addAttribute(.paragraphStyle, value: paraStyle, range: lineRange)
+                    return false
+                }
                 
-                let trimmedLine = currentLine.trimmingCharacters(in: .whitespacesAndNewlines)
-                if trimmedLine == "•" {
-                    textView.insertText("\n", replacementRange: lineRange)
+                // B. Deteksi "- " atau "* " untuk jadi Bullet
+                if currentLine == "-" || currentLine == "*" {
+                    textView.insertText("•\t", replacementRange: lineRange)
+                    let paraStyle = NSMutableParagraphStyle()
+                    let indent: CGFloat = 22
+                    paraStyle.tabStops = [NSTextTab(textAlignment: .left, location: indent, options: [:])]
+                    paraStyle.headIndent = indent
+                    paraStyle.firstLineHeadIndent = 0
+                    textView.textStorage?.addAttribute(.paragraphStyle, value: paraStyle, range: lineRange)
                     return false
-                } else {
-                    textView.insertText("\n• ", replacementRange: affectedCharRange)
+                }
+            }
+            
+            // --- LOGIKA TOMBOL ENTER ---
+            if replacement == "\n" {
+                // 1. Logika untuk DAFTAR BULLET (• )
+                if currentLine.hasPrefix("•\t") {
+                    if currentLine.trimmingCharacters(in: .whitespacesAndNewlines) == "•" {
+                        let deleteRange = NSRange(location: lineRange.location, length: currentLine.count)
+                        textView.insertText("", replacementRange: deleteRange)
+                    } else {
+                        textView.insertText("\n•\t", replacementRange: affectedCharRange)
+                        
+                        // Terapkan Gaya Indentasi Pro (22 poin)
+                        let paraStyle = NSMutableParagraphStyle()
+                        let indent: CGFloat = 22
+                        paraStyle.tabStops = [NSTextTab(textAlignment: .left, location: indent, options: [:])]
+                        paraStyle.headIndent = indent
+                        paraStyle.firstLineHeadIndent = 0
+                        
+                        let newFullString = textView.string as NSString
+                        let newLineRange = newFullString.lineRange(for: NSRange(location: affectedCharRange.location + 1, length: 0))
+                        textView.textStorage?.addAttribute(.paragraphStyle, value: paraStyle, range: newLineRange)
+                    }
+                    parent.proxy.updateState()
                     return false
+                }
+                
+                // 2. Logika untuk DAFTAR BERNUMOR (1. , 2. , dst)
+                let regex = try? NSRegularExpression(pattern: "^(\\d+)\\.[\t ]", options: [])
+                if let match = regex?.firstMatch(in: currentLine, options: [], range: NSRange(location: 0, length: (currentLine as NSString).length)) {
+                    let numberString = (currentLine as NSString).substring(with: match.range(at: 1))
+                    if let currentNumber = Int(numberString) {
+                        if currentLine.trimmingCharacters(in: .whitespacesAndNewlines) == "\(currentNumber)." {
+                            let deleteRange = NSRange(location: lineRange.location, length: currentLine.count)
+                            textView.insertText("", replacementRange: deleteRange)
+                        } else {
+                            // Lanjutkan nomor berikutnya dengan Tab
+                            textView.insertText("\n\(currentNumber + 1).\t", replacementRange: affectedCharRange)
+                            
+                            // Terapkan Gaya Indentasi Pro (22 poin)
+                            let paraStyle = NSMutableParagraphStyle()
+                            let indent: CGFloat = 22
+                            paraStyle.tabStops = [NSTextTab(textAlignment: .left, location: indent, options: [:])]
+                            paraStyle.headIndent = indent
+                            paraStyle.firstLineHeadIndent = 0
+                            
+                            let newFullString = textView.string as NSString
+                            let newLineRange = newFullString.lineRange(for: NSRange(location: affectedCharRange.location + 1, length: 0))
+                            textView.textStorage?.addAttribute(.paragraphStyle, value: paraStyle, range: newLineRange)
+                            
+                            // Pastikan kursor di baris baru mengikuti gaya ini
+                            var attrs = textView.typingAttributes
+                            attrs[.paragraphStyle] = paraStyle
+                            textView.typingAttributes = attrs
+                        }
+                        parent.proxy.updateState()
+                        return false
+                    }
                 }
             }
             
