@@ -172,6 +172,8 @@ struct ContentView: View {
                 ToolbarIcon(icon: "curlybraces", isActive: proxy.isCodeSnippet, tooltip: "Code Snippet (Cmd+J)") { proxy.toggleCodeSnippet() }
                     .keyboardShortcut("j", modifiers: .command)
                 
+                ColorPickerButton(proxy: proxy)
+                
                 Spacer()
                 
                 Button(editingNoteID != nil ? "Update" : "Save") {
@@ -365,6 +367,7 @@ class EditorProxy: ObservableObject {
     @Published var isItalic: Bool = false
     @Published var isUnderline: Bool = false
     @Published var isCodeSnippet: Bool = false
+    @Published var selectedColor: Color = .white
     
     func updateState() {
         guard let textView = textView else { return }
@@ -401,6 +404,12 @@ class EditorProxy: ObservableObject {
             }
         }
         
+        let newSelectedColor: Color
+        if let color = textView.typingAttributes[.foregroundColor] as? NSColor {
+            newSelectedColor = Color(color)
+        } else {
+            newSelectedColor = .white
+        }
         
         var newIsCodeSnippet = false
         if let font = textView.typingAttributes[.font] as? NSFont {
@@ -413,6 +422,7 @@ class EditorProxy: ObservableObject {
             self.isItalic = newIsItalic
             self.isUnderline = newIsUnderline
             self.isCodeSnippet = newIsCodeSnippet
+            self.selectedColor = newSelectedColor
         }
     }
     
@@ -714,6 +724,23 @@ class EditorProxy: ObservableObject {
         textView.didChangeText()
         updateState()
     }
+    
+    func changeColor(_ color: NSColor) {
+        guard let textView = textView else { return }
+        let range = textView.selectedRange()
+        
+        selectedColor = Color(color)
+        
+        if range.length > 0 {
+            textView.textStorage?.addAttribute(.foregroundColor, value: color, range: range)
+        } else {
+            var attrs = textView.typingAttributes
+            attrs[.foregroundColor] = color
+            textView.typingAttributes = attrs
+        }
+        textView.didChangeText()
+        updateState()
+    }
 }
 
 struct MacRichEditorView: NSViewRepresentable {
@@ -962,7 +989,61 @@ struct ToolbarIcon: View {
                 )
         }
         .buttonStyle(.plain)
-        .help(tooltip) // Ini akan memunculkan tooltip saat di-hover
+        .help(tooltip)
+    }
+}
+
+struct ColorPickerButton: View {
+    @ObservedObject var proxy: EditorProxy
+    @State private var showColors = false
+    
+    let colors: [(Color, NSColor, String)] = [
+        (.white, .white, "White"),
+        (.red, .systemRed, "Red"),
+        (.green, .systemGreen, "Green"),
+        (.blue, .systemBlue, "Blue"),
+        (.yellow, .systemYellow, "Yellow"),
+        (.orange, .systemOrange, "Orange"),
+        (.purple, .systemPurple, "Purple"),
+        (.pink, .systemPink, "Pink")
+    ]
+    
+    var body: some View {
+        Button(action: { showColors.toggle() }) {
+            Circle()
+                .fill(proxy.selectedColor)
+                .frame(width: 22, height: 22)
+                .overlay(Circle().stroke(Color.white.opacity(0.4), lineWidth: 1.5))
+                .shadow(color: Color.black.opacity(0.2), radius: 2)
+        }
+        .buttonStyle(.plain)
+        .help("Text Color")
+        .popover(isPresented: $showColors, arrowEdge: .bottom) {
+            VStack(alignment: .leading, spacing: 10) {
+                Text("Text Color")
+                    .font(.system(size: 11, weight: .bold))
+                    .foregroundColor(.white.opacity(0.6))
+                    .padding(.bottom, 2)
+                
+                LazyVGrid(columns: [GridItem(.fixed(24)), GridItem(.fixed(24)), GridItem(.fixed(24)), GridItem(.fixed(24))], spacing: 10) {
+                    ForEach(colors, id: \.2) { item in
+                        Circle()
+                            .fill(item.0)
+                            .frame(width: 20, height: 20)
+                            .overlay(
+                                Circle()
+                                    .stroke(proxy.selectedColor == item.0 ? Color.blue : Color.white.opacity(0.2), lineWidth: 2)
+                            )
+                            .onTapGesture {
+                                proxy.changeColor(item.1)
+                                showColors = false
+                            }
+                    }
+                }
+            }
+            .padding(12)
+            .background(Color(NSColor.windowBackgroundColor))
+        }
     }
 }
 
