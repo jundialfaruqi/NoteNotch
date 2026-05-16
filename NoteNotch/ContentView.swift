@@ -731,7 +731,17 @@ struct MacRichEditorView: NSViewRepresentable {
         
         let textView = NSTextView()
         textView.isRichText = true
+        textView.isEditable = true
+        textView.isSelectable = true
         textView.allowsUndo = true
+        textView.isAutomaticLinkDetectionEnabled = true
+        
+        textView.linkTextAttributes = [
+            .foregroundColor: NSColor.systemBlue,
+            .underlineStyle: NSUnderlineStyle.single.rawValue,
+            .cursor: NSCursor.pointingHand
+        ]
+        
         textView.autoresizingMask = [.width]
         textView.delegate = context.coordinator
         textView.drawsBackground = false
