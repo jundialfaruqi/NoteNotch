@@ -534,14 +534,18 @@ class EditorProxy: ObservableObject {
                 // Tambah bullet dengan Tab dan Indentasi
                 textView.insertText("•\t", replacementRange: NSRange(location: lineRange.location, length: 0))
                 
+                // Ambil ulang jangkauan baris yang sudah diperbarui
+                let updatedFullString = (textView.string as NSString)
+                let newLineRange = updatedFullString.lineRange(for: NSRange(location: lineRange.location, length: 2))
+                
                 let paraStyle = NSMutableParagraphStyle()
                 let indent: CGFloat = 22
                 paraStyle.tabStops = [NSTextTab(textAlignment: .left, location: indent, options: [:])]
                 paraStyle.headIndent = indent
                 paraStyle.firstLineHeadIndent = 0
                 paraStyle.lineSpacing = 4
-                paraStyle.lineBreakMode = .byCharWrapping // Potong karakter jika kata terlalu panjang
-                textView.textStorage?.addAttribute(.paragraphStyle, value: paraStyle, range: lineRange)
+                paraStyle.lineBreakMode = .byCharWrapping
+                textView.textStorage?.addAttribute(.paragraphStyle, value: paraStyle, range: newLineRange)
             }
         } else {
             // KASUS: Ada seleksi teks
@@ -642,6 +646,10 @@ class EditorProxy: ObservableObject {
             } else {
                 textView.insertText("1.\t", replacementRange: NSRange(location: lineRange.location, length: 0))
                 
+                // RE-CALCULATE RANGE setelah insert
+                let updatedFullString = (textView.string as NSString)
+                let newLineRange = updatedFullString.lineRange(for: NSRange(location: lineRange.location, length: 3))
+                
                 let paraStyle = NSMutableParagraphStyle()
                 let indent: CGFloat = 22
                 paraStyle.tabStops = [NSTextTab(textAlignment: .left, location: indent, options: [:])]
@@ -649,7 +657,7 @@ class EditorProxy: ObservableObject {
                 paraStyle.firstLineHeadIndent = 0
                 paraStyle.lineSpacing = 4
                 paraStyle.lineBreakMode = .byCharWrapping
-                textView.textStorage?.addAttribute(.paragraphStyle, value: paraStyle, range: lineRange)
+                textView.textStorage?.addAttribute(.paragraphStyle, value: paraStyle, range: newLineRange)
             }
         } else {
             let selectedText = fullString.substring(with: range)
@@ -911,6 +919,15 @@ struct MacRichEditorView: NSViewRepresentable {
             }
             
             return true
+        }
+        
+        // --- PAKSA PASTE SEBAGAI PLAIN TEXT ---
+        func textView(_ textView: NSTextView, doCommandBy commandSelector: Selector) -> Bool {
+            if commandSelector == #selector(NSText.paste(_:)) {
+                textView.pasteAsPlainText(nil)
+                return true
+            }
+            return false
         }
     }
 }
