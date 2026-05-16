@@ -25,6 +25,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         panel = FloatingPanel {
             ContentView()
         }
+        panel.acceptsMouseMovedEvents = true
         
         triggerWindow = NotchTriggerWindow()
         triggerWindow.makeKeyAndOrderFront(nil)

@@ -159,17 +159,17 @@ struct ContentView: View {
     private var editorView: some View {
         VStack(spacing: 12) {
             HStack(spacing: 12) {
-                ToolbarIcon(icon: "bold", isActive: proxy.isBold) { proxy.toggleBold() }
+                ToolbarIcon(icon: "bold", isActive: proxy.isBold, tooltip: "Bold (Cmd+B)") { proxy.toggleBold() }
                     .keyboardShortcut("b", modifiers: .command)
-                ToolbarIcon(icon: "italic", isActive: proxy.isItalic) { proxy.toggleItalic() }
+                ToolbarIcon(icon: "italic", isActive: proxy.isItalic, tooltip: "Italic (Cmd+I)") { proxy.toggleItalic() }
                     .keyboardShortcut("i", modifiers: .command)
-                ToolbarIcon(icon: "underline", isActive: proxy.isUnderline) { proxy.toggleUnderline() }
+                ToolbarIcon(icon: "underline", isActive: proxy.isUnderline, tooltip: "Underline (Cmd+U)") { proxy.toggleUnderline() }
                     .keyboardShortcut("u", modifiers: .command)
-                ToolbarIcon(icon: "list.bullet", isActive: false) { proxy.toggleList() }
+                ToolbarIcon(icon: "list.bullet", isActive: false, tooltip: "Bullet List (Cmd+L)") { proxy.toggleList() }
                     .keyboardShortcut("l", modifiers: .command)
-                ToolbarIcon(icon: "list.number", isActive: false) { proxy.toggleOrderedList() }
+                ToolbarIcon(icon: "list.number", isActive: false, tooltip: "Ordered List (Cmd+Shift+L)") { proxy.toggleOrderedList() }
                     .keyboardShortcut("l", modifiers: [.command, .shift])
-                ToolbarIcon(icon: "curlybraces", isActive: proxy.isCodeSnippet) { proxy.toggleCodeSnippet() }
+                ToolbarIcon(icon: "curlybraces", isActive: proxy.isCodeSnippet, tooltip: "Code Snippet (Cmd+J)") { proxy.toggleCodeSnippet() }
                     .keyboardShortcut("j", modifiers: .command)
                 
                 Spacer()
@@ -935,6 +935,7 @@ struct MacRichEditorView: NSViewRepresentable {
 struct ToolbarIcon: View {
     let icon: String
     let isActive: Bool
+    let tooltip: String
     let action: () -> Void
     
     var body: some View {
@@ -951,6 +952,7 @@ struct ToolbarIcon: View {
                 )
         }
         .buttonStyle(.plain)
+        .help(tooltip) // Ini akan memunculkan tooltip saat di-hover
     }
 }
 
