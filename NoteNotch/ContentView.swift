@@ -540,6 +540,7 @@ class EditorProxy: ObservableObject {
                 paraStyle.headIndent = indent
                 paraStyle.firstLineHeadIndent = 0
                 paraStyle.lineSpacing = 4
+                paraStyle.lineBreakMode = .byCharWrapping // Potong karakter jika kata terlalu panjang
                 textView.textStorage?.addAttribute(.paragraphStyle, value: paraStyle, range: lineRange)
             }
         } else {
@@ -566,6 +567,7 @@ class EditorProxy: ObservableObject {
             paraStyle.headIndent = indent
             paraStyle.firstLineHeadIndent = 0
             paraStyle.lineSpacing = 4
+            paraStyle.lineBreakMode = .byCharWrapping // Potong karakter jika kata terlalu panjang
             
             let updatedLineRange = (textView.string as NSString).lineRange(for: range)
             textView.textStorage?.addAttribute(.paragraphStyle, value: paraStyle, range: updatedLineRange)
@@ -630,11 +632,24 @@ class EditorProxy: ObservableObject {
             let lineRange = fullString.lineRange(for: NSRange(location: range.location, length: 0))
             let currentLine = fullString.substring(with: lineRange)
             
-            let regex = try? NSRegularExpression(pattern: "^\\d+\\. ", options: [])
+            let regex = try? NSRegularExpression(pattern: "^\\d+\\.[\t ]", options: [])
             if let match = regex?.firstMatch(in: currentLine, options: [], range: NSRange(location: 0, length: (currentLine as NSString).length)) {
                 textView.insertText("", replacementRange: NSRange(location: lineRange.location, length: match.range.length))
+                
+                let normalStyle = NSMutableParagraphStyle()
+                normalStyle.lineSpacing = 4
+                textView.textStorage?.addAttribute(.paragraphStyle, value: normalStyle, range: lineRange)
             } else {
-                textView.insertText("1. ", replacementRange: NSRange(location: lineRange.location, length: 0))
+                textView.insertText("1.\t", replacementRange: NSRange(location: lineRange.location, length: 0))
+                
+                let paraStyle = NSMutableParagraphStyle()
+                let indent: CGFloat = 22
+                paraStyle.tabStops = [NSTextTab(textAlignment: .left, location: indent, options: [:])]
+                paraStyle.headIndent = indent
+                paraStyle.firstLineHeadIndent = 0
+                paraStyle.lineSpacing = 4
+                paraStyle.lineBreakMode = .byCharWrapping
+                textView.textStorage?.addAttribute(.paragraphStyle, value: paraStyle, range: lineRange)
             }
         } else {
             let selectedText = fullString.substring(with: range)
@@ -675,9 +690,10 @@ class EditorProxy: ObservableObject {
             let paraStyle = NSMutableParagraphStyle()
             let indent: CGFloat = 22
             paraStyle.tabStops = [NSTextTab(textAlignment: .left, location: indent, options: [:])]
-            paraStyle.headIndent = indent 
+            paraStyle.headIndent = indent // Untuk baris baru jika teks panjang (wrap)
             paraStyle.firstLineHeadIndent = 0
             paraStyle.lineSpacing = 4
+            paraStyle.lineBreakMode = .byCharWrapping // Potong karakter agar tidak turun semua
             
             let updatedLineRange = (textView.string as NSString).lineRange(for: range)
             textView.textStorage?.addAttribute(.paragraphStyle, value: paraStyle, range: updatedLineRange)
@@ -815,6 +831,7 @@ struct MacRichEditorView: NSViewRepresentable {
                     paraStyle.tabStops = [NSTextTab(textAlignment: .left, location: indent, options: [:])]
                     paraStyle.headIndent = indent
                     paraStyle.firstLineHeadIndent = 0
+                    paraStyle.lineBreakMode = .byCharWrapping
                     textView.textStorage?.addAttribute(.paragraphStyle, value: paraStyle, range: lineRange)
                     return false
                 }
@@ -848,6 +865,7 @@ struct MacRichEditorView: NSViewRepresentable {
                         paraStyle.tabStops = [NSTextTab(textAlignment: .left, location: indent, options: [:])]
                         paraStyle.headIndent = indent
                         paraStyle.firstLineHeadIndent = 0
+                        paraStyle.lineBreakMode = .byCharWrapping
                         
                         let newFullString = textView.string as NSString
                         let newLineRange = newFullString.lineRange(for: NSRange(location: affectedCharRange.location + 1, length: 0))
@@ -875,6 +893,7 @@ struct MacRichEditorView: NSViewRepresentable {
                             paraStyle.tabStops = [NSTextTab(textAlignment: .left, location: indent, options: [:])]
                             paraStyle.headIndent = indent
                             paraStyle.firstLineHeadIndent = 0
+                            paraStyle.lineBreakMode = .byCharWrapping
                             
                             let newFullString = textView.string as NSString
                             let newLineRange = newFullString.lineRange(for: NSRange(location: affectedCharRange.location + 1, length: 0))
