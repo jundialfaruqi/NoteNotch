@@ -6,7 +6,7 @@ class FloatingPanel<Content: View>: NSPanel {
     init(@ViewBuilder content: () -> Content) {
         let screen = NSScreen.main?.frame ?? .zero
 
-        let width: CGFloat = 400
+        let width: CGFloat = 600
         let height: CGFloat = 450
 
         let x = (screen.width - width) / 2
@@ -29,12 +29,11 @@ class FloatingPanel<Content: View>: NSPanel {
         )
 
         isFloatingPanel = true
-        level = .statusBar
+        level = .mainMenu + 1 // Di atas segalanya
 
         backgroundColor = .clear
         isOpaque = false
-
-        hasShadow = true
+        hasShadow = false // Hapus shadow agar menempel rata
 
         collectionBehavior = [
             .canJoinAllSpaces,
@@ -58,10 +57,10 @@ class FloatingPanel<Content: View>: NSPanel {
     func showPanel() {
         guard let screen = NSScreen.main?.frame else { return }
         
-        let targetY = screen.height - self.frame.height - 10
-        let targetX = (screen.width - self.frame.width) / 2
+        let targetY = screen.height - self.frame.height // Menempel pas di sisi atas (0 margin)
+        let targetX = (screen.width - 600) / 2
         
-        let targetFrame = NSRect(x: targetX, y: targetY, width: self.frame.width, height: self.frame.height)
+        let targetFrame = NSRect(x: targetX, y: targetY, width: 600, height: self.frame.height)
         
         NSAnimationContext.runAnimationGroup { context in
             context.duration = 0.5

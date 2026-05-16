@@ -94,7 +94,7 @@ struct ContentView: View {
                     .buttonStyle(.plain)
                     .padding(.leading, 10)
                 }
-                .padding(.horizontal, 20)
+                .padding(.horizontal, 40) // Padding 40 agar teks "NoteNotch" keluar sepenuhnya dari Notch
                 .padding(.top, 20)
                 .padding(.bottom, 15)
 
@@ -106,24 +106,12 @@ struct ContentView: View {
                 }
             }
             .opacity(isMinimized ? 0 : 1)
-            .offset(y: isMinimized ? -100 : 10) // <-- PENGATUR JARAK APUNG: Ganti '0' untuk menjauhkan/mendekatkan dari pinggir atas layar
+            .offset(y: isMinimized ? -100 : 0) // Menempel ke pinggir layar (0)
         }
-        .frame(width: 400)
-        .frame(height: isMinimized ? 30 : (isAddingNote ? 500 : 500), alignment: .top)
-        .background(
-            ZStack {
-                Color.black.opacity(isMinimized ? 0 : 0.85)
-                if !isMinimized {
-                    Rectangle()
-                        .fill(.ultraThinMaterial)
-                }
-            }
-        )
-        .clipShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
-        .overlay(
-            RoundedRectangle(cornerRadius: 24)
-                .stroke(Color.white.opacity(isMinimized ? 0 : 0.1), lineWidth: 1)
-        )
+        .frame(width: 600)
+        .frame(height: isMinimized ? 30 : (isAddingNote ? 490 : 490), alignment: .top)
+        .background(Color.black.opacity(isMinimized ? 0 : 1.0))
+        .clipShape(UnevenRoundedRectangle(topLeadingRadius: 0, bottomLeadingRadius: 24, bottomTrailingRadius: 24, topTrailingRadius: 0))
         .onAppear(perform: loadNotes)
         .onChange(of: notes) {
             saveNotes()
@@ -347,12 +335,11 @@ struct NoteRow: View {
         .padding(18)
         .background(
             RoundedRectangle(cornerRadius: 16)
-                .fill(Color.white.opacity(isHovering ? 0.1 : 0.05))
-                .animation(.easeInOut(duration: 0.2), value: isHovering)
+                .fill(Color.white.opacity(0.05)) // Sedikit tekstur agar tidak "mati" total
         )
         .overlay(
             RoundedRectangle(cornerRadius: 16)
-                .stroke(Color.white.opacity(isHovering ? 0.2 : 0.05), lineWidth: 1)
+                .stroke(Color.white.opacity(0.1), lineWidth: 1)
         )
         .onHover { hovering in
             isHovering = hovering
